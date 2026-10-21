@@ -1,0 +1,21 @@
+{
+  "name": "purify-codex",
+  "version": "0.1.0",
+  "description": "Plain-reporting rules for AI coding agents, and a skill that audits Codex-style pollution",
+  "license": "MIT",
+  "repository": "github:Natsuki-Kaede/purify-codex",
+  "type": "module",
+  "bin": {
+    "purify-codex": "bin/purify-codex.mjs"
+  },
+  "files": [
+    "bin",
+    "skills"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test tests/scan.test.mjs tests/install.test.mjs"
+  }
+}
