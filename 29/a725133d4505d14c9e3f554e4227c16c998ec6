@@ -1,0 +1,52 @@
+README.zh-CN.md
+  s_2aa2678331bc6c::t_fefca3b965deed 36-37
+  s_2aa2678331bc6c::t_93af6feddeaf58 7,26,30-31,34,38-45,79-80
+  s_2aa2678331bc6c::t_47f29e0cf95eac 35
+tests/scan.test.mjs
+  s_2aa2678331bc6c::t_98313fffdbf120 65-68
+  s_2aa2678331bc6c::t_80f7e481205dc4 40-63,71-86
+  s_2aa2678331bc6c::t_b8f1587b10991b 64,69-70
+skills/purify/references/memory.md
+  s_2aa2678331bc6c::t_93af6feddeaf58 5-12
+bin/purify-codex.mjs
+  s_2aa2678331bc6c::t_3f38b719dfef4b 2-3,13-14,17,25,30-31,33-34,36-37,48-49,60-65,67,70-73,78,89-94,103
+  s_2aa2678331bc6c::t_fefca3b965deed 38-46
+  s_2aa2678331bc6c::t_609581b2586d1d 8,32,35,47,66,68-69,74-77
+tests/install.test.mjs
+  s_2aa2678331bc6c::t_80f7e481205dc4 28,33-36,42,46,63-139,182-189
+  s_2aa2678331bc6c::t_b8f1587b10991b 140-152,165-166
+  s_2aa2678331bc6c::t_98313fffdbf120 153-164
+  s_2aa2678331bc6c::t_4ec4dccd5cfb0f 167-181,190
+skills/purify/scripts/scan.mjs
+  s_2aa2678331bc6c::t_609581b2586d1d 15,341
+  s_2aa2678331bc6c::t_15da8c9774ab3b 178,183-184,194-198,239,242,247,295-297,304-306,379,382-385,672,675,681-682
+skills/purify/scripts/rules.mjs
+  s_2aa2678331bc6c::t_609581b2586d1d 9,36-45,52-53,73
+  s_2aa2678331bc6c::t_3f38b719dfef4b 1-8,10-19,35,46-51,54-56,58-72,74-80
+  s_2aa2678331bc6c::t_98313fffdbf120 20-34
+  s_2aa2678331bc6c::t_93af6feddeaf58 57
+skills/purify/references/locations.md
+  s_2aa2678331bc6c::t_93af6feddeaf58 7
+skills/purify/SKILL.md
+  s_2aa2678331bc6c::t_93af6feddeaf58 14,39-41,79,81-83,105
+README.md
+  s_2aa2678331bc6c::t_93af6feddeaf58 7,26,30-31,34,38-45,79-80
+  s_2aa2678331bc6c::t_fefca3b965deed 36-37
+  s_2aa2678331bc6c::t_b6d8e4cd7f1124 35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "29a725133d4505d14c9e3f554e4227c16c998ec6",
+  "prompts": {},
+  "sessions": {
+    "s_2aa2678331bc6c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1ab81-dc66-73e3-8acb-8b5e41517642",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Natsuki-Kaede <i@pari.network>"
+    }
+  }
+}
