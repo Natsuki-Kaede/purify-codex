@@ -2,6 +2,14 @@
 
 Codex writes memories as task logs: task narration, keyword dumps, thread ids, rollout pointers, and long lists of "do not …" lessons. Imported into another agent, or left in place, they teach the reader to write the same way. Distill each file to the facts a future session in that project would use.
 
+## Establish ownership
+
+Inspect the active session's memory sources before proposing changes. For Codex, the scanner inventories both `~/.codex/memories_v2/` and `~/.codex/memories/`; a directory's presence does not establish that the session uses it.
+
+Codex-managed summaries and rollout files belong to the host. Keep generated files and their source identifiers intact. An audit delivers findings; when the user explicitly requests a correction, use the active host's supported memory correction mechanism. Keep loading and generation settings intact when correcting wording.
+
+The distillation steps below apply to user-maintained memories and imported copies whose owner permits editing.
+
 ## Before you start
 
 - Archive every memory directory you will touch.

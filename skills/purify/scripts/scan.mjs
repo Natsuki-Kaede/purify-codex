@@ -12,6 +12,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { replaceManagedBlock, ruleForms, stripRuleText, instructionReferences, resolveReference } from './rules.mjs';
 
 const HOME = os.homedir();
 const OWN_DIR = fs.realpathSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..'));
@@ -174,19 +175,13 @@ function scanText(text, { codeComments = false } = {}) {
   };
 }
 
-// The purify rules, installed as PURIFY.md or inline between these markers, quote the patterns they
-// replace, so they are recorded as loaded and left out of matching, along with the @ line that
-// imports PURIFY.md (an absolute path in Codex's AGENTS.md).
-const PURIFY_BLOCK = /<!-- purify-codex:start -->[\s\S]*?<!-- purify-codex:end -->/;
-const PURIFY_IMPORT = /^@\S*PURIFY\.md[ \t]*$/gm;
-
+// Recognized rule clauses are instructions for avoiding the patterns, not pollution hits.
 function fileReport(p, extra = {}) {
   const text = readText(p);
   if (text == null) return null;
   const link = fs.lstatSync(p).isSymbolicLink() ? realpath(p) : null;
-  const purify = path.basename(p) === 'PURIFY.md' || PURIFY_BLOCK.test(text);
-  const scanned = scanText(path.basename(p) === 'PURIFY.md' ? '' : text.replace(PURIFY_BLOCK, '').replace(PURIFY_IMPORT, ''));
-  return { path: p, link, modified: mtime(p), ...scanned, ...(purify && { purify, chars: text.length }), ...extra };
+  const scanned = scanText(stripRuleText(text));
+  return { path: p, link, modified: mtime(p), ...scanned, chars: text.length, purifyForms: ruleForms(text), ...extra };
 }
 
 // ---------- agent registry ----------
@@ -196,7 +191,11 @@ const APPDATA = process.env.APPDATA;
 const AGENTS = [
   { name: 'Codex', marker: [H('.codex')],
     instructions: [H('.codex', 'AGENTS.md'), H('.codex', 'AGENTS.override.md')],
-    memory: { dirs: [H('.codex', 'memories')], injected: [H('.codex', 'memories', 'memory_summary.md')], owner: 'Codex regenerates this directory from its session logs' },
+    memory: {
+      dirs: [H('.codex', 'memories_v2'), H('.codex', 'memories')],
+      summaries: [H('.codex', 'memories_v2', 'memory_summary.md'), H('.codex', 'memories', 'memory_summary.md')],
+      owner: 'Codex-managed memory; use the active host\'s memory correction workflow',
+    },
     skills: [H('.codex', 'skills'), H('.codex', 'memories', 'skills')],
     prompts: [H('.codex', 'prompts')],
     hooks: [H('.codex', 'hooks.json')], tomlHooks: [H('.codex', 'config.toml')] },
@@ -237,16 +236,15 @@ function skillFiles(dir, deep) {
 
 function importsOf(file) {
   const text = readText(file) ?? '';
-  return [...text.matchAll(/^@(\S+)\s*$/gm)].map((m) => resolveRef(m[1], file));
+  return instructionReferences(text).map((ref) => ({ path: resolveRef(ref.ref, file), kind: ref.kind }));
 }
 function resolveRef(ref, file) {
-  const r = ref.replace(/[:#]\d+.*$/, '').replace(/[.,;)]+$/, '');
-  return r.startsWith('~') ? path.join(HOME, r.slice(1)) : path.isAbsolute(r) ? r : path.join(path.dirname(file), r);
+  return resolveReference(ref, file, HOME);
 }
 function brokenRefs(file) {
   const text = readText(file) ?? '';
   const refs = new Set();
-  for (const m of text.matchAll(/^@(\S+)\s*$/gm)) refs.add(m[1]);
+  for (const { ref } of instructionReferences(text)) refs.add(ref);
   for (const m of text.matchAll(/`((?:~|\/Users|\/home)\/[^`\s]+)`/g)) refs.add(m[1]);
   return [...refs].filter((r) => !/[<>*{}$]/.test(r) && !exists(resolveRef(r, file)));
 }
@@ -294,17 +292,18 @@ function memoryReport(spec) {
     ? spec.dirs.flatMap((d) => listDir(d).filter((e) => e.isDirectory())
       .flatMap((e) => walk(path.join(d, e.name, 'memory'), { depth: 1, match: (p) => p.endsWith('.md') })))
     : spec.dirs.flatMap((d) => walk(d, { depth: 3, match: (p) => TEXT_FILE.test(p) }));
-  if (!files.length && !clean(spec.injected).some(exists)) return null;
-  const injectedPaths = new Set(clean(spec.injected));
-  if (spec.claudeProjects) files.filter((f) => path.basename(f) === 'MEMORY.md').forEach((f) => injectedPaths.add(f));
+  if (!files.length && !clean(spec.summaries).some(exists)) return null;
+  const summaryPaths = new Set(clean(spec.summaries));
+  if (spec.claudeProjects) files.filter((f) => path.basename(f) === 'MEMORY.md').forEach((f) => summaryPaths.add(f));
   const reports = files.map((f) => fileReport(f)).filter(Boolean);
   return {
     files: files.length,
     bytes: files.reduce((s, f) => s + size(f), 0),
     taskLog: reports.filter((r) => r.hits['codex-log']).length,
     owner: spec.owner,
-    injected: [...injectedPaths].map((f) => fileReport(f)).filter((r) => r && (r.weighted || !spec.claudeProjects)),
-    top: spec.owner ? [] : reports.filter((r) => r.weighted && !injectedPaths.has(r.path)).sort((a, b) => b.weighted - a.weighted).slice(0, 6),
+    directories: spec.dirs.filter(exists),
+    summaries: [...summaryPaths].map((f) => fileReport(f)).filter(Boolean),
+    top: spec.owner ? [] : reports.filter((r) => r.weighted && !summaryPaths.has(r.path)).sort((a, b) => b.weighted - a.weighted).slice(0, 6),
   };
 }
 
@@ -339,7 +338,7 @@ function normalize(text) {
 }
 
 function duplicates(files) {
-  const norm = [...new Set(files)].map((f) => ({ path: f, raw: (readText(f) ?? '').replace(PURIFY_BLOCK, '') })).map((f) => ({ ...f, lines: normalize(f.raw) })).filter((f) => f.lines.length > 3);
+  const norm = [...new Set(files)].map((f) => ({ path: f, raw: replaceManagedBlock(readText(f) ?? '') })).map((f) => ({ ...f, lines: normalize(f.raw) })).filter((f) => f.lines.length > 3);
   const out = [];
   for (let i = 0; i < norm.length; i++) for (let j = i + 1; j < norm.length; j++) {
     const a = new Set(norm[i].lines), b = new Set(norm[j].lines);
@@ -377,10 +376,13 @@ function auditAgents() {
       if (!r) continue;
       primary.push(p);
       r.broken = brokenRefs(p);
-      r.imports = importsOf(p).map((f) => fileReport(f)).filter(Boolean);
+      r.imports = importsOf(p).map((ref) => fileReport(ref.path, { referenceKind: ref.kind })).filter(Boolean);
       entry.instructions.push(r);
     }
-    if (entry.checked.length) entry.purify = entry.instructions.some((r) => r.purify || r.imports.some((i) => i.purify));
+    if (entry.checked.length) entry.purifyRules = entry.instructions.flatMap((r) => [
+      ...r.purifyForms.map((form) => ({ form, path: r.path })),
+      ...r.imports.filter((i) => i.purifyForms.length).map((i) => ({ form: i.referenceKind, path: i.path })),
+    ]);
     for (const d of clean(a.rules)) for (const p of walk(d, { depth: 2, match: (f) => TEXT_FILE.test(f) })) {
       const r = fileReport(p);
       if (r) { entry.rules.push(r); primary.push(p); }
@@ -667,16 +669,17 @@ function renderAgents(res) {
       for (const r of a.instructions) {
         withSamples(out, r, { prohibitions: true });
         if (r.broken.length) out.push(`  - broken references: ${r.broken.join(', ')}`);
-        for (const i of r.imports) out.push(`  - imports ${fileLine(i).slice(2)}`);
+        for (const i of r.imports) out.push(`  - ${i.referenceKind}: ${fileLine(i).slice(2)}`);
       }
     } else if (a.checked.length && !shared) out.push(`- global instructions: none (checked ${a.checked.join(', ')})`);
-    if (a.checked.length && !shared) out.push(`- purify rules (PURIFY.md): ${a.purify ? 'loaded' : 'not loaded'}`);
+    if (a.checked.length && !shared) out.push(`- purify rule configuration: ${a.purifyRules.length ? a.purifyRules.map((r) => `${r.form} in \`${home(r.path)}\``).join('; ') : 'no recognized rule text; review custom wording manually'}`);
     for (const r of a.rules) withSamples(out, r, { prohibitions: true });
     for (const r of a.prompts) out.push(fileLine(r));
     const m = a.memory;
     if (m) {
       out.push(`- memory: ${m.files} files, ${Math.round(m.bytes / 1024)} KB, ${m.taskLog} in Codex task-log format${m.owner ? ` (${m.owner})` : ''}`);
-      for (const r of m.injected) withSamples(out, r, { indent: '  ', prefix: 'loaded into every session:' });
+      out.push(`  - locations on disk: ${m.directories.map(home).join(', ')}`);
+      for (const r of m.summaries) withSamples(out, r, { indent: '  ', prefix: 'summary found on disk:' });
       for (const r of m.top) out.push('  ' + fileLine(r));
     }
     if (a.skills) out.push(`- skills: ${a.skills.count}${a.skills.names ? ` (${a.skills.names.join(', ')})` : ''}`);

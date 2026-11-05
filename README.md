@@ -4,7 +4,7 @@ English | [简体中文](README.zh-CN.md)
 
 purify-codex keeps AI coding agents from writing in the Codex style, and cleans up what that style already left behind. It has two parts:
 
-- **`PURIFY.md`**, a short set of plain-reporting rules that every agent session loads;
+- **`PURIFY.md`**, a reusable template of daily reporting rules to merge into global instructions;
 - **`/purify`**, a skill that audits your agent setup and your repositories.
 
 Codex models (GPT-5.x, GPT-6 Sol and Astra) have recognizable habits:
@@ -23,15 +23,26 @@ OpenAI's own [prompting guide](https://developers.openai.com/api/docs/guides/lat
 npx github:Natsuki-Kaede/purify-codex
 ```
 
-For each agent it finds, the installer loads the rules and installs the `/purify` skill:
+For each agent it finds, the installer installs the `/purify` skill. It preserves recognized rules already merged into global instructions and existing user-maintained references. Where rules are needed, it adds a managed block:
 
 | Agent | Rules | Skill |
 |---|---|---|
-| Claude Code | `~/.claude/PURIFY.md`, imported by `@PURIFY.md` in `~/.claude/CLAUDE.md` | `~/.claude/skills/purify` |
-| Codex | `~/.codex/PURIFY.md`, imported by an `@` line with its absolute path in `~/.codex/AGENTS.md` | `~/.codex/skills/purify` |
+| Claude Code | `~/.claude/PURIFY.md`, referenced by a managed `@PURIFY.md` block in `~/.claude/CLAUDE.md` | `~/.claude/skills/purify` |
+| Codex | inline in `~/.codex/AGENTS.md` (or `AGENTS.override.md` when present) | `~/.codex/skills/purify` |
 | Gemini CLI and Antigravity | inline in `~/.gemini/GEMINI.md`, which both read | `~/.gemini/skills/purify` |
 
-The copy in `GEMINI.md` sits between `<!-- purify-codex:start -->` and `<!-- purify-codex:end -->` markers. Run the command again to update, and add `uninstall` to remove everything it added. A skill folder that is a symlink, such as one made by the skills CLI, is left in place. New sessions pick up the rules.
+Installer-owned blocks sit between `<!-- purify-codex:start -->` and `<!-- purify-codex:end -->` markers. Run the command again to update managed blocks and copied skills; `uninstall` removes them. User-maintained inline rules, explicit read references and legacy unmarked `@` references are preserved, along with the files they reference. Linked skill folders, such as those made by the skills CLI, are left in place.
+
+An existing unreferenced `PURIFY.md` is preserved. In that case, Claude Code receives an inline managed block. Examples inside fenced code blocks are left untouched. Uninstall checks user references across all supported agents before removing a managed rules file.
+
+If you maintain the rules in your own wording, install or remove only the audit skill:
+
+```bash
+npx github:Natsuki-Kaede/purify-codex install --skill-only
+npx github:Natsuki-Kaede/purify-codex uninstall --skill-only
+```
+
+Recognition covers the bundled rule wording, including clauses split across sections and the stronger implementation rule covering caches, abstractions and existing guarantees. Review other wording manually. Daily rules apply through global instructions; invoke the skill when you want an audit.
 
 For other agents, paste [`PURIFY.md`](skills/purify/PURIFY.md) into their global rules (Cursor User Rules, Windsurf `global_rules.md`, Claude app preferences), and add the skill with the [skills CLI](https://github.com/vercel-labs/skills): `npx skills add Natsuki-Kaede/purify-codex`.
 
@@ -65,8 +76,8 @@ Reply with the IDs you want changed. The skill backs up files before editing the
   - shared skills whose copies drifted apart;
   - hooks copied from another agent;
   - sync settings that will bring the pollution back.
-- **Memories.** Task-log memories imported from Codex are distilled down to durable facts. The audit also checks `memory_summary.md`, which Codex loads into every session.
-- **Purify rules.** Whether each agent loads `PURIFY.md`, and where its own instructions repeat the same rules.
+- **Memories.** Inspect both Codex `memories_v2` and `memories` directories and their summary files. Confirm active sources from the session. Correct generated memories through the host's supported mechanism when explicitly requested; distill user-maintained imported copies into durable facts.
+- **Daily reporting rules.** Recognized inline text, managed blocks, `@` references and explicit `Read and follow` / `读取并遵循` references. The scan reports configuration found on disk; review custom wording and establish actual loading from session evidence when needed.
 - **Design documents.** These are read from `docs/`, `design/`, `rfc/`, `adr/`, `spec/`, and similar folders, including git-ignored ones. The audit looks for:
   - process logs and handoff prompts left inside designs;
   - long non-goal and limitation lists;

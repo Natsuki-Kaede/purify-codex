@@ -37,6 +37,53 @@ function scan(home, ...args) {
   return JSON.parse(execFileSync(process.execPath, [SCAN, ...args, '--json'], { encoding: 'utf8', env: { ...process.env, HOME: home } }));
 }
 
+const TEMPLATE = fs.readFileSync(path.join(path.dirname(SCAN), '..', 'PURIFY.md'), 'utf8');
+
+test('agents: explicit reads with spaces follow rule content and report configuration', () => {
+  for (const language of ['Read and follow', '读取并遵循']) {
+    const home = fixture({ '.codex/style rules.md': TEMPLATE });
+    const target = path.join(home, '.codex/style rules.md');
+    fs.writeFileSync(path.join(home, '.codex/AGENTS.md'), `# Mine\n\n${language} \`${target}\`.\n`);
+    const codex = scan(home, 'agents').agents.find((a) => a.name === 'Codex');
+    assert.deepEqual(codex.purifyRules, [{ form: 'explicit read', path: target }]);
+    assert.deepEqual(codex.instructions[0].broken, []);
+    assert.equal(codex.instructions[0].imports[0].path, target);
+  }
+});
+
+test('agents: a PURIFY.md filename alone does not establish rule configuration', () => {
+  const home = fixture({ '.codex/AGENTS.md': '# Mine\n\n@PURIFY.md\n', '.codex/PURIFY.md': '# Unrelated notes\n' });
+  assert.deepEqual(scan(home, 'agents').agents.find((a) => a.name === 'Codex').purifyRules, []);
+});
+
+test('agents: fenced examples do not configure rules', () => {
+  const home = fixture({ '.codex/AGENTS.md': '# Examples\n\n```markdown\n' + TEMPLATE + '\n```\n' });
+  assert.deepEqual(scan(home, 'agents').agents.find((a) => a.name === 'Codex').purifyRules, []);
+});
+
+test('agents: fenced managed-block examples are not installed configuration', () => {
+  for (const [open, close] of [['```markdown\n', '```\n'], ['~~~markdown\n', '~~~\n'], ['````markdown\n```markdown\n', '```\n````\n']]) {
+    const home = fixture({ '.codex/AGENTS.md': '# Examples\n\n' + open + '<!-- purify-codex:start -->\n' + TEMPLATE + '\n<!-- purify-codex:end -->\n' + close });
+    assert.deepEqual(scan(home, 'agents').agents.find((a) => a.name === 'Codex').purifyRules, []);
+  }
+});
+
+test('agents: inventory v2 and legacy memory without claiming that either is active', () => {
+  const home = fixture({
+    '.codex/AGENTS.md': '# Mine\n',
+    '.codex/memories_v2/memory_summary.md': '# Current summary\n',
+    '.codex/memories_v2/rollout_summaries/recent.md': '# Recent source\n',
+    '.codex/memories/memory_summary.md': '# Old summary\n',
+  });
+  const memory = scan(home, 'agents').agents.find((a) => a.name === 'Codex').memory;
+  assert.equal(memory.files, 3);
+  assert.deepEqual(memory.directories, [path.join(home, '.codex/memories_v2'), path.join(home, '.codex/memories')]);
+  assert.equal(memory.summaries.length, 2);
+  const output = execFileSync(process.execPath, [SCAN, 'agents'], { encoding: 'utf8', env: { ...process.env, HOME: home } });
+  assert.match(output, /summary found on disk/);
+  assert.doesNotMatch(output, /loaded into every session|rules.*not loaded/);
+});
+
 const RULES = `# Global instructions
 
 - Report what you did and what you found.

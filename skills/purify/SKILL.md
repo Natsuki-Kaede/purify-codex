@@ -11,7 +11,7 @@ Codex models tend to tell the reader what they won't do, list what stayed unchan
 - into other agents' instruction files, memories, and hooks, through import and sync features and copied rules;
 - into the code and docs of the repositories these agents work in.
 
-Other models then read that text and imitate it. This skill finds the pollution, shows the evidence, and changes what the user picks. The style rules in `PURIFY.md` keep new sessions from adding more; the installer (`npx github:Natsuki-Kaede/purify-codex`) loads them into each agent's global instructions.
+Other models then read that text and imitate it. This skill finds the pollution, shows the evidence, and changes what the user picks. Daily reporting rules belong in the agent's global instructions; `PURIFY.md` is a reusable template. Keep rules already merged there. The installer (`npx github:Natsuki-Kaede/purify-codex`) installs the audit skill and supplies rules where needed; use `install --skill-only` for custom wording maintained by the user.
 
 ## Modes
 
@@ -36,8 +36,9 @@ Add `--json` for structured output.
 
 **Agents mode** prints, for each installed agent:
 
-- its global instructions, including files they `@import`; when it has none, which paths were checked;
-- the memory loaded into every session, and the rest of the memory in summary;
+- its global instructions, including `@` references and explicit `Read and follow` / `读取并遵循` references; when it has none, which paths were checked;
+- recognized rule configuration: inline text, managed inline blocks, or references to recognized rules;
+- memory directories and summary files found on disk, including both Codex `memories_v2` and `memories`;
 - its hooks, flagging any that name a different agent;
 - the text that is kept in the account and not on disk.
 
@@ -75,11 +76,11 @@ Read `references/patterns.md`. Its test: keep a rule, sentence, or check when yo
 3. **Open channels.** Import and sync settings, shared skill directories, and hooks copied from another agent will bring the pollution back. For example, a Codex hook that runs `git-ai checkpoint claude` records Codex's edits as Claude's. Propose closing or correcting each one.
 4. **Memory.** Distill memories imported from Codex, or written in its task-log format, with `references/memory.md`.
 
-   Codex's own memory works differently. Codex loads `~/.codex/memories/memory_summary.md` into every session and regenerates it from session logs (`[memories] generate_memories`), so hand edits do not last. Judge that file. If it still carries the style after the purify rules are loaded, propose `[memories] use_memories = false`, which stops loading it (`generate_memories = false` also stops regenerating it), and re-check after the next regeneration.
+   For Codex-managed memory, check which sources the active session actually uses. The scanner inventories both `~/.codex/memories_v2/` and the older `~/.codex/memories/`; files on disk may be inactive. Preserve user preferences, source pointers and generated files. When the user explicitly requests a memory correction, use the correction mechanism supported by the active host. Treat wording problems with a scoped correction; keep memory loading settings intact.
 5. **Skills.** Look for Codex-only tool names inside other agents' skills, proof-boundary boilerplate, and copies that drifted apart. A skill installed from a package (`~/.agents/skills`, plugin directories) belongs to its publisher: report it, and edit a local copy only if the user accepts the drift.
-6. **Purify rules.** The scanner shows whether each agent loads `PURIFY.md`.
-   - For Claude Code, Codex, Gemini CLI, and Antigravity, propose running the installer. For other agents, propose pasting `PURIFY.md` into their global instructions or account settings.
-   - When an agent's own instructions already carry the same rules, point out the overlap and let the user keep one copy.
+6. **Daily reporting rules.** Inspect recognized configuration and read custom wording the scanner does not recognize. Detection describes files on disk; establish actual loading from session evidence when it matters.
+   - Reuse rules already merged into global instructions. For custom wording, install only the audit skill with `npx github:Natsuki-Kaede/purify-codex install --skill-only`.
+   - Where rules are needed, propose using the template once in the agent's global instructions. The installer preserves user-maintained references and recognized inline rules; it updates its own marked blocks.
 7. **Repositories.** When the current repository's `CLAUDE.md` or `GEMINI.md` only imports `AGENTS.md`, recommend a project audit.
 8. **Account-level text.** Claude app preferences, styles, and project instructions; Cursor User Rules; and ChatGPT custom instructions are not on disk. Ask for them at the end of the report.
 
@@ -101,7 +102,7 @@ Open with the main conclusion. Close by saying once how the audit ran and what y
 
 Save long reports outside tracked files, such as a git-ignored docs folder or a scratch directory, and give the path. Copy only the excerpts you need from private or credential directories.
 
-Write the report by the rules it enforces (`PURIFY.md`).
+Write the report using the applicable global reporting rules. Use the bundled `PURIFY.md` as a template for gaps, preserving the user's decisions.
 
 ## Step 4: Apply what the user picks
 
